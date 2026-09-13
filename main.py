@@ -8,7 +8,7 @@ ADMIN_ID = 1006157952
 SUPABASE_URL = "https://gaxyfiwthsdtugopjzkz.supabase.co/rest/v1/" 
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdheHlmaXd0aHNkdHVnb3Bqemt6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMTA2NzQsImV4cCI6MjEwNDg4NjY3NH0.Jtxo4aZyd2uDP-YxUwSyPuTIQuSPot0TKpw-h-9sJyc"
 
-# टेलीग्राम कंपैटिबल डायरेक्ट इमेज लिंक
+# पेमेंट QR कोड का लिंक
 QR_CODE_URL = "https://i.ibb.co/7JzK1hRv/IMG-20260913-223730-495.jpg" 
 # ======================================================
 
@@ -52,11 +52,11 @@ def hack_menu_keyboard():
     markup.row(btn_back)
     return markup
 
-# 🔍 सुरक्षित बैलेंस निकालने का फिक्स (डेटाबेस रिस्पॉन्स फॉर्मेट सुधारा गया)
+# 🔍 सुरक्षित बैलेंस निकालने का फिक्स (डेटा एक्सट्रैक्शन सही किया गया)
 def get_user_balance(user_id):
     try:
         response = supabase.table("users").select("balance").eq("user_id", user_id).execute()
-        # Supabase Python SDK हमेशा एक लिस्ट (List) रिटर्न करता है
+        # Supabase हमेशा एक लिस्ट रिटर्न करता है, इसलिए पहली रो [0] को चेक करना होगा
         if response.data and len(response.data) > 0:
             return response.data[0].get('balance', 0)
         return 0
@@ -95,7 +95,7 @@ def process_balance_deduction(message, item_name, price, stock_data):
 def start_command(message):
     user_id = message.from_user.id
     try:
-        # अगर यूजर नया है तो रजिस्टर करें
+        # अगर यूजर नया है तो डेटाबेस में रजिस्टर करें
         supabase.table("users").upsert({"user_id": user_id}).execute()
     except Exception as e:
         print(f"रजिस्ट्रेशन एरर: {e}")
@@ -108,7 +108,7 @@ def start_command(message):
 def handle_bot_operations(message):
     user_id = message.from_user.id
     
-    # 💰 BALANCE चेक
+    # 💰 BALANCE चेक (फिक्स किया गया)
     if message.text == "BALANCE ✅":
         balance = get_user_balance(user_id)
         if balance is None:
@@ -116,19 +116,18 @@ def handle_bot_operations(message):
         else:
             bot.send_message(message.chat.id, f"💰 आपका मौजूदा बैलेंस है: *{balance} RS*", parse_mode="Markdown")
         
-    # 💸 ADD FUND (QR इमेज फिक्स)
+    # 💸 ADD FUND
     elif message.text == "ADD FUND ✅":
         fund_text = (
             "📌 *मैनुअल फंड जोड़ने की प्रक्रिया:*\n\n"
             "1. ऊपर दिए गए QR कोड को स्कैन करके पेमेंट करें।\n"
-            "2. पेमेंट करने के बाद स्क्रीनशॉट और अपनी टेलीग्राम ID एडमिन को भेजें।\n\n"
+            "2. पेमेंट करने के बाद स्क्रीनशॉट and अपनी टेलीग्राम ID एडमिन को भेजें।\n\n"
             f"🔑 *आपकी टेलीग्राम ID:* `{user_id}` (इसे कॉपी करके भेजें)\n\n"
             "📩 *Send Screenshot @SpeedFistt*"
         )
         try:
             bot.send_photo(message.chat.id, QR_CODE_URL, caption=fund_text, parse_mode="Markdown")
         except Exception as e:
-            # अगर इमेज लिंक लोड होने में एरर आए तो लिंक टेक्स्ट के साथ मैसेज भेजें
             fallback_text = f"🖼️ *पेमेंट QR कोड लिंक:* {QR_CODE_URL}\n\n" + fund_text
             bot.send_message(message.chat.id, fallback_text, parse_mode="Markdown")
         
@@ -176,7 +175,7 @@ def admin_add_balance(message):
         current_balance = get_user_balance(target_user)
         
         if current_balance is None:
-            # अगर यूजर पहली बार आया है
+            # यदि यूजर डेटाबेस में नहीं है तो पहली बार में ही वैल्यू के साथ जोड़ें
             supabase.table("users").upsert({"user_id": target_user, "balance": amount}).execute()
         else:
             new_balance = current_balance + amount
