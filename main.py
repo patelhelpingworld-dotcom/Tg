@@ -5,9 +5,9 @@ from supabase import create_client, Client
 # ==================== क्रेडेंशियल्स ====================
 BOT_TOKEN = "6227179254:AAHd7mtq55sxSlQAcEKuqwMDog74_3Z4Dzg"
 ADMIN_ID = 1006157952  
-SUPABASE_URL = "https://supabase.co" 
+SUPABASE_URL = "https://gaxyfiwthsdtugopjzkz.supabase.co/rest/v1/" 
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdheHlmaXd0aHNkdHVnb3Bqemt6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMTA2NzQsImV4cCI6MjEwNDg4NjY3NH0.Jtxo4aZyd2uDP-YxUwSyPuTIQuSPot0TKpw-h-9sJyc"
-QR_CODE_URL = "https://ibb.co" 
+QR_CODE_URL = "https://i.ibb.co/7JzK1hRv/IMG-20260913-223730-495.jpg" 
 # ======================================================
 
 bot = telebot.TeleBot(BOT_TOKEN)
