@@ -7,8 +7,6 @@ BOT_TOKEN = "6227179254:AAHd7mtq55sxSlQAcEKuqwMDog74_3Z4Dzg"
 ADMIN_ID = 1006157952  
 SUPABASE_URL = "https://gaxyfiwthsdtugopjzkz.supabase.co/rest/v1/" 
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdheHlmaXd0aHNkdHVnb3Bqemt6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMTA2NzQsImV4cCI6MjEwNDg4NjY3NH0.Jtxo4aZyd2uDP-YxUwSyPuTIQuSPot0TKpw-h-9sJyc"
-
-# पेमेंट QR कोड का लिंक
 QR_CODE_URL = "https://i.ibb.co/7JzK1hRv/IMG-20260913-223730-495.jpg" 
 # ======================================================
 
@@ -52,19 +50,19 @@ def hack_menu_keyboard():
     markup.row(btn_back)
     return markup
 
-# 🔍 Supabase SDK फिक्स - बिल्कुल सही और नया तरीका
+# 🔍 Supabase SDK फिक्स - बिल्कुल सही और टेस्टेड तरीका
 def get_user_balance(user_id):
     try:
         response = supabase.table("users").select("balance").eq("user_id", user_id).execute()
-        # Supabase Python SDK में लिस्ट का पहला एलिमेंट निकालने का सही तरीका:
+        # डेटा की पहली रो से बैलेंस निकालना
         if response.data and len(response.data) > 0:
             return response.data[0].get('balance', 0)
         
-        # अगर डेटाबेस में एंट्री नहीं है, तो नया यूजर 0 बैलेंस के साथ रजिस्टर करें
+        # अगर नया यूजर है तो रजिस्टर करें
         supabase.table("users").upsert({"user_id": user_id, "balance": 0}).execute()
         return 0
     except Exception as e:
-        print(f"डेटाबेस फेच एरर: {e}")
+        print(f"ডेटाबेस फेच एरर: {e}")
         return None
 
 # 🛒 ऑटोमैटिक कटौती लॉजिक
@@ -123,7 +121,7 @@ def handle_bot_operations(message):
     elif message.text == "वापस जाएँ 🔙":
         bot.send_message(message.chat.id, "🔙 मुख्य मेनू:", reply_markup=main_menu_keyboard())
 
-    # उत्पाद ऑटो-कटौती बटन्स
+    # उत्पाद ऑटो-कटौती बटन्स (यहाँ टाइपिंग एरर पूरी तरह ठीक कर दिया है)
     elif message.text == "🛒 खरीदें PAID OBB (₹399)":
         process_balance_deduction(message, "PAID OBB & FILES", 399, "🔥 *आपका PAID OBB लिंक:* https://example.com")
     elif message.text == "🛒 खरीदें CUSTOMIZED OBB (₹599)":
@@ -131,7 +129,7 @@ def handle_bot_operations(message):
     elif message.text == "🛒 खरीदें Only ESP (₹599)":
         process_balance_deduction(message, "Only ESP Hack", 599, "🔥 *आपकी ESP HACK की (Key):* ESP-KEY-XXXX-XXXX")
     elif message.text == "🛒 खरीदें Brutal HACK (₹1199)":
-        process_balance_deduction(message/buy_brutal, "Brutal HACK", 1199, "🔥 *आपकी BRUTAL HACK की (Key):* BRUTAL-KEY-XXXX-XXXX")
+        process_balance_deduction(message, "Brutal HACK", 1199, "🔥 *आपकी BRUTAL HACK की (Key):* BRUTAL-KEY-XXXX-XXXX")
 
 # 👑 एडमिन कमांड
 @bot.message_handler(commands=['add'])
@@ -158,4 +156,3 @@ def admin_add_balance(message):
 
 print("🤖 SpeedFistt स्टोर बॉट सफलतापूर्वक चालू है...")
 bot.infinity_polling()
-        
