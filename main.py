@@ -83,7 +83,7 @@ def process_balance_deduction(message, item_name, price, stock_data):
         except Exception as e:
             bot.send_message(message.chat.id, f"❌ एरर: {str(e)}")
     else:
-        bot.send_message(message.chat.id, f"❌ *बैलेंस कम है!*\n\n• आवश्यक: {price} RS\n• आपका बैलेंस: {current_balance} RS\n\nकृपया ADD FUND बटन दबाकर बैलेंस बढ़ाएं।")
+        bot.send_message(message.chat.id, f"❌ *बैलेंस कम है!*\n\n• आवश्यक: {price} RS\n• आपका बैलेंस: {current_balance} RS\n\n¼फंड बढ़ाने के लिए ADD FUND बटन दबाएं।")
 
 # /start कमांड
 @bot.message_handler(commands=['start'])
@@ -121,7 +121,7 @@ def handle_bot_operations(message):
     elif message.text == "वापस जाएँ 🔙":
         bot.send_message(message.chat.id, "🔙 मुख्य मेनू:", reply_markup=main_menu_keyboard())
 
-    # उत्पाद ऑटो-कटौती बटन्स (यहाँ टाइपिंग एरर पूरी तरह ठीक कर दिया है)
+    # उत्पाद ऑटो-कटौती बटन्स
     elif message.text == "🛒 खरीदें PAID OBB (₹399)":
         process_balance_deduction(message, "PAID OBB & FILES", 399, "🔥 *आपका PAID OBB लिंक:* https://example.com")
     elif message.text == "🛒 खरीदें CUSTOMIZED OBB (₹599)":
@@ -150,7 +150,7 @@ def admin_add_balance(message):
         supabase.table("users").upsert({"user_id": target_user, "balance": new_balance}).execute()
         
         bot.send_message(message.chat.id, f"✅ यूजर `{target_user}` के खाते में {amount} RS जोड़ दिए गए।")
-        bot.send_message(target_user, f"🎉 एडमिन @SpeedFistt ने आपके खाते में *{amount} RS* जोड़ दिए हैं! अपना BALANCE चेक करें।", parse_mode="Markdown")
+        bot.send_message(target_user, f"🎉 एडमिन @SpeedFistt ने आपके खाते में *{amount} RS* जोड़ दिए हैं! अपना BALANCE嫌 चेक करें।", parse_mode="Markdown")
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ एरर: {str(e)}")
 
