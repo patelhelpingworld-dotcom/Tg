@@ -7,6 +7,8 @@ BOT_TOKEN = "6227179254:AAHd7mtq55sxSlQAcEKuqwMDog74_3Z4Dzg"
 ADMIN_ID = 1006157952  
 SUPABASE_URL = "https://gaxyfiwthsdtugopjzkz.supabase.co/rest/v1/" 
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdheHlmaXd0aHNkdHVnb3Bqemt6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMTA2NzQsImV4cCI6MjEwNDg4NjY3NH0.Jtxo4aZyd2uDP-YxUwSyPuTIQuSPot0TKpw-h-9sJyc"
+
+# टेलीग्राम कंपैटिबल डायरेक्ट इमेज लिंक
 QR_CODE_URL = "https://i.ibb.co/7JzK1hRv/IMG-20260913-223730-495.jpg" 
 # ======================================================
 
@@ -50,27 +52,33 @@ def hack_menu_keyboard():
     markup.row(btn_back)
     return markup
 
-# 🔥 ऑटोमैटिक बैलेंस कटौती (Auto Deduction Logic)
-def process_balance_deduction(message, item_name, price, stock_data):
-    user_id = message.from_user.id
-    
-    # Supabase से यूजर का मौजूदा बैलेंस निकालना
+# Safe Balance Extractor function
+def get_user_balance(user_id):
     try:
         response = supabase.table("users").select("balance").eq("user_id", user_id).execute()
+        if response.data and len(response.data) > 0:
+            # सुरक्षित तरीका: डिक्शनरी या लिस्ट फॉर्मेट दोनों को चेक करना
+            data_row = response.data[0]
+            if isinstance(data_row, dict):
+                return data_row.get('balance', 0)
+        return 0
+    except Exception as e:
+        print(f"Database Fetch Error: {e}")
+        return None
+
+# 🔥 ऑटोमैटिक बैलेंस कटौती
+def process_balance_deduction(message, item_name, price, stock_data):
+    user_id = message.from_user.id
+    current_balance = get_user_balance(user_id)
+    
+    if current_balance is None:
+        bot.send_message(message.chat.id, "❌ डेटाबेस से संपर्क नहीं हो पा रहा है। कृपया कुछ समय बाद प्रयास करें।")
+        return
         
-        if not response.data:
-            bot.send_message(message.chat.id, "⚠️ कृपया पहले बॉट को /start करें।")
-            return
-            
-        current_balance = response.data[0]['balance']
-        
-        # बैलेंस चेक करना
-        if current_balance >= price:
-            new_balance = current_balance - price
-            
-            # डेटाबेस में नया बैलेंस अपडेट (काटना) करना
+    if current_balance >= price:
+        new_balance = current_balance - price
+        try:
             supabase.table("users").update({"balance": new_balance}).eq("user_id", user_id).execute()
-            
             success_text = (
                 "✅ *खरीदारी सफल रही!*\n\n"
                 f"📦 *उत्पाद:* {item_name} (Full Season)\n"
@@ -79,11 +87,10 @@ def process_balance_deduction(message, item_name, price, stock_data):
                 f"{stock_data}"
             )
             bot.send_message(message.chat.id, success_text, parse_mode="Markdown", reply_markup=main_menu_keyboard())
-        else:
-            bot.send_message(message.chat.id, f"❌ *बैलेंस कम है!*\n\nआवश्यक: {price} RS\nआपका बैलेंस: {current_balance} RS\n\nकृपया ADD FUND बटन दबाकर बैलेंस बढ़ाएं।")
-            
-    except Exception as e:
-        bot.send_message(message.chat.id, f"❌ एरर: {str(e)}")
+        except Exception as e:
+            bot.send_message(message.chat.id, f"❌ बैलेंस अपडेट करने में त्रुटि: {str(e)}")
+    else:
+        bot.send_message(message.chat.id, f"❌ *बैलेंस कम है!*\n\nआवश्यक: {price} RS\nआपका बैलेंस: {current_balance} RS\n\nकृपया ADD FUND बटन दबाकर बैलेंस बढ़ाएं।")
 
 # /start कमांड
 @bot.message_handler(commands=['start'])
@@ -97,21 +104,20 @@ def start_command(message):
     welcome_text = "👋 आपका स्वागत है SpeedFistt स्टोर बॉट में!\n\nनीचे दिए गए बटन्स का उपयोग करके शॉपिंग करें।"
     bot.send_message(message.chat.id, welcome_text, reply_markup=main_menu_keyboard())
 
-# मुख्य बटन्स और सब-मेनू इनपुट हैंडलर
+# मुख्य बटन्स और इनपुट हैंडलर
 @bot.message_handler(func=lambda message: True)
 def handle_bot_operations(message):
     user_id = message.from_user.id
     
     # 💰 BALANCE चेक
     if message.text == "BALANCE ✅":
-        try:
-            response = supabase.table("users").select("balance").eq("user_id", user_id).execute()
-            balance = response.data[0]['balance'] if response.data else 0
+        balance = get_user_balance(user_id)
+        if balance is None:
+            bot.send_message(message.chat.id, "⚠️ बैलेंस चेक करने में दिक्कत आ रही है। कृपया /start दबाकर दोबारा प्रयास करें।")
+        else:
             bot.send_message(message.chat.id, f"💰 आपका मौजूदा बैलेंस है: *{balance} RS*", parse_mode="Markdown")
-        except Exception as e:
-            bot.send_message(message.chat.id, "⚠️ बैलेंस चेक करने में दिक्कत आ रही है।")
         
-    # 💸 ADD FUND (QR + Screenshot Message)
+    # 💸 ADD FUND 
     elif message.text == "ADD FUND ✅":
         fund_text = (
             "📌 *मैनुअल फंड जोड़ने की प्रक्रिया:*\n\n"
@@ -122,18 +128,20 @@ def handle_bot_operations(message):
         )
         try:
             bot.send_photo(message.chat.id, QR_CODE_URL, caption=fund_text, parse_mode="Markdown")
-        except:
-            bot.send_message(message.chat.id, fund_text, parse_mode="Markdown")
+        except Exception as e:
+            # अगर टेलीग्राम इमेज लिंक रिजेक्ट करता है, तो सीधे लिंक को टेक्स्ट में शामिल करके भेजें
+            fallback_text = f"🖼️ *पेमेंट QR कोड लिंक:* {QR_CODE_URL}\n\n" + fund_text
+            bot.send_message(message.chat.id, fallback_text, parse_mode="Markdown")
         
-    # 📁 OBB & FILES मेनू खोलना
+    # 📁 OBB & FILES मेनू
     elif message.text == "OBB & FILES":
         bot.send_message(message.chat.id, "📁 *OBB & FILES सेक्शन:*\nनीचे मेनू से अपनी पसंद का उत्पाद चुनें (Full Season):", reply_markup=obb_menu_keyboard())
         
-    # ⚡ BGMI PAID HACK मेनू खोलना
+    # ⚡ BGMI PAID HACK मेनू
     elif message.text == "BGMI PAID HACK":
         bot.send_message(message.chat.id, "⚡ *BGMI PAID HACK सेक्शन:*\nनीचे मेनू से अपना हैक चुनें (Full Season):", reply_markup=hack_menu_keyboard())
         
-    # 🔙 वापस मुख्य मेनू पर जाना
+    # 🔙 वापस मुख्य मेनू
     elif message.text == "वापस जाएँ 🔙":
         bot.send_message(message.chat.id, "🔙 आप मुख्य मेनू पर लौट आए हैं:", reply_markup=main_menu_keyboard())
 
@@ -150,10 +158,9 @@ def handle_bot_operations(message):
     elif message.text == "🛒 खरीदें Brutal HACK (₹1199)":
         process_balance_deduction(message, "Brutal HACK", 1199, "🔥 *आपकी BRUTAL HACK की (Key):* BRUTAL-KEY-XXXX-XXXX")
 
-# 👑 एडमिन कमांड: मैनुअल फंड जोड़ना (/add [User_ID] [Amount])
+# 👑 एडमिन कमांड: मैनुअल फंड जोड़ना
 @bot.message_handler(commands=['add'])
 def admin_add_balance(message):
-    # सुरक्षा जांच: केवल आप ही बैलेंस जोड़ सकते हैं
     if message.from_user.id != ADMIN_ID:
         bot.send_message(message.chat.id, "❌ आपके पास इस कमांड का अधिकार नहीं है।")
         return
@@ -167,19 +174,16 @@ def admin_add_balance(message):
         target_user = int(args[1])
         amount = int(args[2])
         
-        # यूजर का पुराना बैलेंस चेक करना
-        response = supabase.table("users").select("balance").eq("user_id", target_user).execute()
-        if not response.data:
-            bot.send_message(message.chat.id, "❌ यह यूजर डेटाबेस में नहीं है (इसने बॉट स्टार्ट नहीं किया)।")
-            return
-            
-        # नया बैलेंस जोड़ना
-        new_balance = response.data[0]['balance'] + amount
-        supabase.table("users").update({"balance": new_balance}).eq("user_id", target_user).execute()
+        current_balance = get_user_balance(target_user)
+        if current_balance is None:
+            # अगर यूजर पहली बार आया है और रजिस्टर्ड नहीं है
+            supabase.table("users").upsert({"user_id": target_user, "balance": amount}).execute()
+            new_balance = amount
+        else:
+            new_balance = current_balance + amount
+            supabase.table("users").update({"balance": new_balance}).eq("user_id", target_user).execute()
         
         bot.send_message(message.chat.id, f"✅ यूजर `{target_user}` के खाते में {amount} RS जोड़ दिए गए हैं।")
-        
-        # यूजर को टेलीग्राम पर सूचित करना
         bot.send_message(target_user, f"🎉 एडमिन @SpeedFistt ने आपके खाते में *{amount} RS* जोड़ दिए हैं! अपना BALANCE चेक करें।", parse_mode="Markdown")
         
     except ValueError:
