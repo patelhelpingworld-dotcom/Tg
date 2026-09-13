@@ -52,27 +52,25 @@ def hack_menu_keyboard():
     markup.row(btn_back)
     return markup
 
-# Safe Balance Extractor function
+# 🔍 सुरक्षित बैलेंस निकालने का फिक्स (डेटाबेस रिस्पॉन्स फॉर्मेट सुधारा गया)
 def get_user_balance(user_id):
     try:
         response = supabase.table("users").select("balance").eq("user_id", user_id).execute()
+        # Supabase Python SDK हमेशा एक लिस्ट (List) रिटर्न करता है
         if response.data and len(response.data) > 0:
-            # सुरक्षित तरीका: डिक्शनरी या लिस्ट फॉर्मेट दोनों को चेक करना
-            data_row = response.data[0]
-            if isinstance(data_row, dict):
-                return data_row.get('balance', 0)
+            return response.data[0].get('balance', 0)
         return 0
     except Exception as e:
-        print(f"Database Fetch Error: {e}")
+        print(f"डेटाबेस फेच एरर: {e}")
         return None
 
-# 🔥 ऑटोमैटिक बैलेंस कटौती
+# 🛒 ऑटोमैटिक बैलेंस कटौती लॉजिक
 def process_balance_deduction(message, item_name, price, stock_data):
     user_id = message.from_user.id
     current_balance = get_user_balance(user_id)
     
     if current_balance is None:
-        bot.send_message(message.chat.id, "❌ डेटाबेस से संपर्क नहीं हो पा रहा है। कृपया कुछ समय बाद प्रयास करें।")
+        bot.send_message(message.chat.id, "❌ डेटाबेस से संपर्क नहीं हो पाया। कृपया दोबारा प्रयास करें।")
         return
         
     if current_balance >= price:
@@ -92,11 +90,12 @@ def process_balance_deduction(message, item_name, price, stock_data):
     else:
         bot.send_message(message.chat.id, f"❌ *बैलेंस कम है!*\n\nआवश्यक: {price} RS\nआपका बैलेंस: {current_balance} RS\n\nकृपया ADD FUND बटन दबाकर बैलेंस बढ़ाएं।")
 
-# /start कमांड
+# /start कमांड हैंडलर
 @bot.message_handler(commands=['start'])
 def start_command(message):
     user_id = message.from_user.id
     try:
+        # अगर यूजर नया है तो रजिस्टर करें
         supabase.table("users").upsert({"user_id": user_id}).execute()
     except Exception as e:
         print(f"रजिस्ट्रेशन एरर: {e}")
@@ -117,7 +116,7 @@ def handle_bot_operations(message):
         else:
             bot.send_message(message.chat.id, f"💰 आपका मौजूदा बैलेंस है: *{balance} RS*", parse_mode="Markdown")
         
-    # 💸 ADD FUND 
+    # 💸 ADD FUND (QR इमेज फिक्स)
     elif message.text == "ADD FUND ✅":
         fund_text = (
             "📌 *मैनुअल फंड जोड़ने की प्रक्रिया:*\n\n"
@@ -129,19 +128,19 @@ def handle_bot_operations(message):
         try:
             bot.send_photo(message.chat.id, QR_CODE_URL, caption=fund_text, parse_mode="Markdown")
         except Exception as e:
-            # अगर टेलीग्राम इमेज लिंक रिजेक्ट करता है, तो सीधे लिंक को टेक्स्ट में शामिल करके भेजें
+            # अगर इमेज लिंक लोड होने में एरर आए तो लिंक टेक्स्ट के साथ मैसेज भेजें
             fallback_text = f"🖼️ *पेमेंट QR कोड लिंक:* {QR_CODE_URL}\n\n" + fund_text
             bot.send_message(message.chat.id, fallback_text, parse_mode="Markdown")
         
-    # 📁 OBB & FILES मेनू
+    # OBB मेनू खोलना
     elif message.text == "OBB & FILES":
         bot.send_message(message.chat.id, "📁 *OBB & FILES सेक्शन:*\nनीचे मेनू से अपनी पसंद का उत्पाद चुनें (Full Season):", reply_markup=obb_menu_keyboard())
         
-    # ⚡ BGMI PAID HACK मेनू
+    # BGMI हैक मेनू खोलना
     elif message.text == "BGMI PAID HACK":
         bot.send_message(message.chat.id, "⚡ *BGMI PAID HACK सेक्शन:*\nनीचे मेनू से अपना हैक चुनें (Full Season):", reply_markup=hack_menu_keyboard())
         
-    # 🔙 वापस मुख्य मेनू
+    # वापस जाना
     elif message.text == "वापस जाएँ 🔙":
         bot.send_message(message.chat.id, "🔙 आप मुख्य मेनू पर लौट आए हैं:", reply_markup=main_menu_keyboard())
 
@@ -175,10 +174,10 @@ def admin_add_balance(message):
         amount = int(args[2])
         
         current_balance = get_user_balance(target_user)
+        
         if current_balance is None:
-            # अगर यूजर पहली बार आया है और रजिस्टर्ड नहीं है
+            # अगर यूजर पहली बार आया है
             supabase.table("users").upsert({"user_id": target_user, "balance": amount}).execute()
-            new_balance = amount
         else:
             new_balance = current_balance + amount
             supabase.table("users").update({"balance": new_balance}).eq("user_id", target_user).execute()
