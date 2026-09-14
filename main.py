@@ -2,16 +2,19 @@ import telebot
 from telebot import types
 
 # ==================== क्रेडेंशियल्स ====================
-BOT_TOKEN = "6227179254:AAHd7mtq55sxSlQAcEKuqwMDog74_3Z4Dzg"
+BOT_TOKEN = "1105158554:AAHaby5PH4X7EfdRBAFHVXhyONX3ErDQwa4"
 ADMIN_ID = 1006157952  
 QR_CODE_URL = "https://i.ibb.co/7JzK1hRv/IMG-20260913-223730-495.jpg" 
 
 # ⚠️ यहाँ अपने बनाए गए प्राइवेट चैनल की ID डालें (माइनस चिन्ह के साथ)
-# ध्यान दें: अगर आपकी आईडी -100 से शुरू होती है, तो उसे पूरा माइनस के साथ लिखें
+# (पक्का कर लें कि बॉट इस चैनल में Admin है और उसे 'Post Messages' की अनुमति है)
 CHANNEL_ID = -1003892586354  
 # ======================================================
 
 bot = telebot.TeleBot(BOT_TOKEN)
+
+# डमी बैलेंस ट्रैकर (क्रैश से सुरक्षा के लिए, असली बैलेंस चैनल बटन से अपडेट होगा)
+user_live_balances = {}
 
 # 1. मुख्य होम मेनू कीबोर्ड
 def main_menu_keyboard():
@@ -50,60 +53,38 @@ def hack_menu_keyboard():
     markup.row(btn_back)
     return markup
 
-# 🔍 चैनल के इतिहास को स्कैन करके लाइव बैलेंस निकालने का 100% सही तरीका
-def get_user_balance(user_id):
-    total_balance = 0
-    try:
-        # चैनल के आखिरी 1000 संदेशों का इतिहास निकालना
-        messages = bot.get_chat_history(CHANNEL_ID, limit=1000)
-        
-        # संदेशों को पुराने से नए (नीचे से ऊपर) के क्रम में गिनना
-        for msg in reversed(messages):
-            if msg.text:
-                text_str = str(msg.text).strip()
-                # फ़ॉर्मेट चेक करना: ADD:USER_ID:AMOUNT
-                if text_str.startswith("ADD:"):
-                    parts = text_str.split(":")
-                    if len(parts) == 3 and int(parts[1]) == user_id:
-                        total_balance += int(parts[2])
-                # फ़ॉर्मेट चेक करना: BUY:USER_ID:AMOUNT
-                elif text_str.startswith("BUY:"):
-                    parts = text_str.split(":")
-                    if len(parts) == 3 and int(parts[1]) == user_id:
-                        total_balance -= int(parts[2])
-                        
-        return total_balance
-    except Exception as e:
-        print(f"चैनल से बैलेंस पढ़ने में तकनीकी त्रुटि: {e}")
-        return 0
-
-# 🛒 ऑटोमैटिक कटौती लॉजिक (चैनल एंट्री के साथ)
+# 🛒 ऑटोमैटिक कटौती लॉजिक
 def process_balance_deduction(message, item_name, price, stock_data):
     user_id = message.from_user.id
-    current_balance = get_user_balance(user_id)
+    current_balance = user_live_balances.get(user_id, 0)
     
     if current_balance >= price:
+        user_live_balances[user_id] = current_balance - price
+        new_balance = user_live_balances[user_id]
+        
+        # टेलीग्राम चैनल में खरीदारी का रिकॉर्ड भेजना
         try:
-            # कटौती का रिकॉर्ड प्राइवेट चैनल में 'BUY:यूजर:प्राइस' के रूप में भेजना
-            bot.send_message(CHANNEL_ID, f"BUY:{user_id}:{price}")
+            bot.send_message(CHANNEL_ID, f"🛍️ *शॉपिंग रिकॉर्ड*\n\n👤 यूजर ID: `{user_id}`\n📦 उत्पाद: {item_name}\n💸 कटौती: {price} RS\n💰 नया बैलेंस: {new_balance} RS", parse_mode="Markdown")
+        except:
+            pass
             
-            new_balance = current_balance - price
-            success_text = (
-                "✅ *खरीदारी सफल रही!*\n\n"
-                f"📦 *उत्पाद:* {item_name} (Full Season)\n"
-                f"💸 *कटौती:* {price} RS\n"
-                f"💰 *नया बैलेंस:* {new_balance} RS\n\n"
-                f"{stock_data}"
-            )
-            bot.send_message(message.chat.id, success_text, parse_mode="Markdown", reply_markup=main_menu_keyboard())
-        except Exception as e:
-            bot.send_message(message.chat.id, f"❌ कटौती रिकॉर्ड चैनल में दर्ज नहीं हो पाया: {str(e)}")
+        success_text = (
+            "✅ *खरीदारी सफल रही!*\n\n"
+            f"📦 *उत्पाद:* {item_name} (Full Season)\n"
+            f"💸 *कटौती:* {price} RS\n"
+            f"💰 *नया बैलेंस:* {new_balance} RS\n\n"
+            f"{stock_data}"
+        )
+        bot.send_message(message.chat.id, success_text, parse_mode="Markdown", reply_markup=main_menu_keyboard())
     else:
         bot.send_message(message.chat.id, f"❌ *बैलेंस कम है!*\n\n• आवश्यक: {price} RS\n• आपका बैलेंस: {current_balance} RS\n\nकृपया FUND बढ़ाने के लिए ADD FUND बटन दबाएं।")
 
 # /start कमांड
 @bot.message_handler(commands=['start'])
 def start_command(message):
+    user_id = message.from_user.id
+    if user_id not in user_live_balances:
+        user_live_balances[user_id] = 0
     bot.send_message(message.chat.id, "👋 आपका स्वागत है SpeedFistt स्टोर बॉट में!\n\nनीचे दिए गए बटन्स का उपयोग करके शॉपिंग करें।", reply_markup=main_menu_keyboard())
 
 # इनपुट हैंडलर
@@ -113,7 +94,7 @@ def handle_bot_operations(message):
     
     # 💰 BALANCE चेक
     if message.text == "BALANCE ✅":
-        balance = get_user_balance(user_id)
+        balance = user_live_balances.get(user_id, 0)
         bot.send_message(message.chat.id, f"💰 आपका मौजूदा बैलेंस है: *{balance} RS*", parse_mode="Markdown")
         
     # 💸 ADD FUND
@@ -141,7 +122,7 @@ def handle_bot_operations(message):
     elif message.text == "🛒 खरीदें Brutal HACK (₹1199)":
         process_balance_deduction(message, "Brutal HACK", 1199, "🔥 *आपकी BRUTAL HACK की (Key):* BRUTAL-KEY-XXXX-XXXX")
 
-# 👑 एडमिन कमांड: मैनुअल फंड जोड़ना
+# 👑 एडमिन कमांड: चैनल में अप्रूवल बटन भेजना
 @bot.message_handler(commands=['add'])
 def admin_add_balance(message):
     if message.from_user.id != ADMIN_ID:
@@ -151,16 +132,44 @@ def admin_add_balance(message):
         bot.send_message(message.chat.id, "⚠️ Format: `/add [User_ID] [Amount]`")
         return
     try:
-        target_user = int(args[1])
-        amount = int(args[2])
+        target_user = args[1]
+        amount = args[2]
         
-        # फंड जोड़ने का रिकॉर्ड 'ADD:यूजर:अमाउंट' के रूप में सीधे चैनल में भेजना
-        bot.send_message(CHANNEL_ID, f"ADD:{target_user}:{amount}")
+        # चैनल में इनलाइन बटन के साथ मैसेज भेजना
+        markup = types.InlineKeyboardMarkup()
+        # callback_data में यूजर आईडी और अमाउंट स्टोर करना
+        approve_btn = types.InlineKeyboardButton("बैलेंस जोड़ें ✅", callback_data=f"conf_{target_user}_{amount}")
+        markup.add(approve_btn)
         
-        bot.send_message(message.chat.id, f"✅ यूजर `{target_user}` के खाते में {amount} RS जोड़ दिए गए हैं।")
-        bot.send_message(target_user, f"🎉 एडमिन @SpeedFistt ने आपके खाते में *{amount} RS* जोड़ दिए हैं! अपना BALANCE चेक करें।", parse_mode="Markdown")
+        channel_msg = f"💰 *फंड अप्रूवल रिक्वेस्ट*\n\n👤 यूजर ID: `{target_user}`\n💵 अमाउंट: *{amount} RS*"
+        bot.send_message(CHANNEL_ID, channel_msg, parse_mode="Markdown", reply_markup=markup)
+        
+        bot.send_message(message.chat.id, f"📨 यूजर `{target_user}` के लिए {amount} RS जोड़ने का बटन आपके प्राइवेट चैनल में भेज दिया गया है। कृपया वहाँ जाकर कन्फर्म करें।")
     except Exception as e:
-        bot.send_message(message.chat.id, f"❌ चैनल में बैलेंस जोड़ने में एरर: {str(e)}")
+        bot.send_message(message.chat.id, f"❌ एरर: {str(e)}")
+
+# 🔔 चैनल बटन क्लिक हैंडलर (क्लिक करते ही तुरंत रियल-टाइम बैलेंस अपडेट)
+@bot.callback_query_handler(func=lambda call: call.data.startswith("conf_"))
+def approve_balance_callback(call):
+    try:
+        # डेटा निकालना callback_data से
+        _, target_user_str, amount_str = call.data.split("_")
+        target_user = int(target_user_str)
+        amount = int(amount_str)
+        
+        # लाइव बैलेंस अपडेट करना
+        current = user_live_balances.get(target_user, 0)
+        user_live_balances[target_user] = current + amount
+        
+        # चैनल का मैसेज अपडेट करके बटन हटा देना ताकि दोबारा क्लिक न हो सके
+        updated_text = call.message.text + f"\n\n🟢 *APPROVED:* {amount} RS सफलता पूर्वक जोड़ दिए गए हैं।"
+        bot.edit_message_text(chat_id=CHANNEL_ID, message_id=call.message.message_id, text=updated_text, reply_markup=None)
+        
+        # यूजर को टेलीग्राम पर सूचित करना
+        bot.send_message(target_user, f"🎉 एडमिन @SpeedFistt ने आपके खाते में *{amount} RS* जोड़ दिए हैं! अपना BALANCE चेक करें करें।", parse_mode="Markdown")
+        bot.answer_callback_query(call.id, "✅ बैलेंस सफलता पूर्वक जोड़ दिया गया!", show_alert=True)
+    except Exception as e:
+        bot.answer_callback_query(call.id, f"❌ एरर: {str(e)}", show_alert=True)
 
 print("🤖 SpeedFistt स्टोर बॉट सफलतापूर्वक चालू है...")
 bot.infinity_polling()
