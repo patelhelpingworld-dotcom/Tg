@@ -50,19 +50,21 @@ def hack_menu_keyboard():
     markup.row(btn_back)
     return markup
 
-# 🔍 Supabase SDK फिक्स - बिल्कुल सही और टेस्टेड तरीका
+# 🔍 डेटाबेस लिस्ट फिक्स - इंडेक्स क्रैश से सुरक्षा
 def get_user_balance(user_id):
     try:
         response = supabase.table("users").select("balance").eq("user_id", user_id).execute()
-        # डेटा की पहली रो से बैलेंस निकालना
+        # पहले चेक करें कि लिस्ट खाली तो नहीं है, फिर सुरक्षित तरीके से डेटा निकालें
         if response.data and len(response.data) > 0:
-            return response.data[0].get('balance', 0)
+            first_row = response.data[0]
+            if isinstance(first_row, dict):
+                return first_row.get('balance', 0)
         
-        # अगर नया यूजर है तो रजिस्टर करें
+        # अगर नया यूजर है (डेटा नहीं मिला), तो रजिस्टर करके 0 बैलेंस सेट करें
         supabase.table("users").upsert({"user_id": user_id, "balance": 0}).execute()
         return 0
     except Exception as e:
-        print(f"ডेटाबेस फेच एरर: {e}")
+        print(f"डेटाबेस फेच एरर: {e}")
         return None
 
 # 🛒 ऑटोमैटिक कटौती लॉजिक
@@ -83,7 +85,7 @@ def process_balance_deduction(message, item_name, price, stock_data):
         except Exception as e:
             bot.send_message(message.chat.id, f"❌ एरर: {str(e)}")
     else:
-        bot.send_message(message.chat.id, f"❌ *बैलेंस कम है!*\n\n• आवश्यक: {price} RS\n• आपका बैलेंस: {current_balance} RS\n\n¼फंड बढ़ाने के लिए ADD FUND बटन दबाएं।")
+        bot.send_message(message.chat.id, f"❌ *बैलेंस कम है!*\n\n• आवश्यक: {price} RS\n• आपका बैलेंस: {current_balance} RS\n\nकृपया FUND बढ़ाने के लिए ADD FUND बटन दबाएं।")
 
 # /start कमांड
 @bot.message_handler(commands=['start'])
@@ -150,9 +152,10 @@ def admin_add_balance(message):
         supabase.table("users").upsert({"user_id": target_user, "balance": new_balance}).execute()
         
         bot.send_message(message.chat.id, f"✅ यूजर `{target_user}` के खाते में {amount} RS जोड़ दिए गए।")
-        bot.send_message(target_user, f"🎉 एडमिन @SpeedFistt ने आपके खाते में *{amount} RS* जोड़ दिए हैं! अपना BALANCE嫌 चेक करें।", parse_mode="Markdown")
+        bot.send_message(target_user, f"🎉 एडमिन @SpeedFistt ने आपके खाते में *{amount} RS* जोड़ दिए हैं! अपना BALANCE चेक करें।", parse_mode="Markdown")
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ एरर: {str(e)}")
 
 print("🤖 SpeedFistt स्टोर बॉट सफलतापूर्वक चालू है...")
 bot.infinity_polling()
+        
