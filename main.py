@@ -1,17 +1,48 @@
 import telebot
 from telebot import types
+import os
 
 # ==================== क्रेडेंशियल्स ====================
 BOT_TOKEN = "6227179254:AAHd7mtq55sxSlQAcEKuqwMDog74_3Z4Dzg"
 ADMIN_ID = 1006157952  
 QR_CODE_URL = "https://i.ibb.co/7JzK1hRv/IMG-20260913-223730-495.jpg" 
-
-# ⚠️ यहाँ अपने बनाए गए प्राइवेट चैनल की ID डालें (माइनस चिन्ह के साथ)
-# उदाहरण: -1002345678901
-CHANNEL_ID = -1003892586354  
+DB_FILE = "database.txt"
 # ======================================================
 
 bot = telebot.TeleBot(BOT_TOKEN)
+
+# 📄 लोकल फाइल से बैलेंस पढ़ने और लिखने के फंक्शन्स
+def read_all_balances():
+    balances = {}
+    if not os.path.exists(DB_FILE):
+        return balances
+    try:
+        with open(DB_FILE, "r") as f:
+            for line in f:
+                if ":" in line:
+                    uid, bal = line.strip().split(":")
+                    balances[int(uid)] = int(bal)
+    except Exception as e:
+        print(f"File Read Error: {e}")
+    return balances
+
+def save_all_balances(balances):
+    try:
+        with open(DB_FILE, "w") as f:
+            for uid, bal in balances.items():
+                f.write(f"{uid}:{bal}\n")
+    except Exception as e:
+        print(f"File Write Error: {e}")
+
+def get_user_balance(user_id):
+    balances = read_all_balances()
+    return balances.get(user_id, 0)
+
+def update_user_balance(user_id, amount):
+    balances = read_all_balances()
+    balances[user_id] = balances.get(user_id, 0) + amount
+    save_all_balances(balances)
+    return balances[user_id]
 
 # 1. मुख्य होम मेनू कीबोर्ड
 def main_menu_keyboard():
@@ -26,81 +57,49 @@ def main_menu_keyboard():
     markup.row(btn_hack)
     return markup
 
-# 2. OBB & FILES सब-मेनू कीबोर्ड
+# OBB & FILES सब-मेनू
 def obb_menu_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    btn_paid_obb = types.KeyboardButton("🛒 खरीदें PAID OBB (₹399)")
-    btn_cust_obb = types.KeyboardButton("🛒 खरीदें CUSTOMIZED OBB (₹599)")
-    btn_back = types.KeyboardButton("वापस जाएँ 🔙")
-    
-    markup.row(btn_paid_obb)
-    markup.row(btn_cust_obb)
-    markup.row(btn_back)
+    markup.row(types.KeyboardButton("🛒 खरीदें PAID OBB (₹399)"))
+    markup.row(types.KeyboardButton("🛒 खरीदें CUSTOMIZED OBB (₹599)"))
+    markup.row(types.KeyboardButton("वापस जाएँ 🔙"))
     return markup
 
-# 3. BGMI PAID HACK सब-मेनू कीबोर्ड
+# HACK सब-मेनू
 def hack_menu_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    btn_esp = types.KeyboardButton("🛒 खरीदें Only ESP (₹599)")
-    btn_brutal = types.KeyboardButton("🛒 खरीदें Brutal HACK (₹1199)")
-    btn_back = types.KeyboardButton("वापस जाएँ 🔙")
-    
-    markup.row(btn_esp)
-    markup.row(btn_brutal)
-    markup.row(btn_back)
+    markup.row(types.KeyboardButton("🛒 खरीदें Only ESP (₹599)"))
+    markup.row(types.KeyboardButton("🛒 खरीदें Brutal HACK (₹1199)"))
+    markup.row(types.KeyboardButton("वापस जाएँ 🔙"))
     return markup
 
-# 🔍 चैनल के इतिहास से यूजर का लाइव बैलेंस निकालने का 100% वर्किंग लॉजिक
-def get_user_balance(user_id):
-    total_balance = 0
-    try:
-        # बॉट चैनल के आखिरी 1000 मैसेजेस को इतिहास से पढ़ेगा
-        # ध्यान रहे: बॉट का चैनल में Admin होना और 'Read Messages' का अधिकार होना ज़रूरी है
-        messages = bot.get_chat_history(CHANNEL_ID, limit=1000)
-        
-        # इतिहास में नीचे से ऊपर की तरफ गणना करना
-        for msg in reversed(messages):
-            if msg.text:
-                parts = msg.text.split(":")
-                # अगर एडमिन ने फंड जोड़ा है -> ADD:USER_ID:AMOUNT
-                if len(parts) == 3 and parts[0] == "ADD" and int(parts[1]) == user_id:
-                    total_balance += int(parts[2])
-                # अगर यूजर ने कुछ खरीदा है -> BUY:USER_ID:AMOUNT
-                elif len(parts) == 3 and parts[0] == "BUY" and int(parts[1]) == user_id:
-                    total_balance -= int(parts[2])
-                    
-        return total_balance
-    except Exception as e:
-        print(f"चैनल से बैलेंस पढ़ने में एरर: {e}")
-        return 0
-
-# 🛒 ऑटोमैटिक कटौती लॉजिक (टेलीग्राम चैनल डेटाबेस के साथ)
+# 🛒 ऑटोमैटिक कटौती लॉजिक
 def process_balance_deduction(message, item_name, price, stock_data):
     user_id = message.from_user.id
     current_balance = get_user_balance(user_id)
     
     if current_balance >= price:
-        try:
-            # खरीदारी का रिकॉर्ड प्राइवेट चैनल में स्टोर करना
-            bot.send_message(CHANNEL_ID, f"BUY:{user_id}:{price}")
-            
-            new_balance = current_balance - price
-            success_text = (
-                "✅ *खरीदारी सफल रही!*\n\n"
-                f"📦 *उत्पाद:* {item_name} (Full Season)\n"
-                f"💸 *कटौती:* {price} RS\n"
-                f"💰 *नया बैलेंस:* {new_balance} RS\n\n"
-                f"{stock_data}"
-            )
-            bot.send_message(message.chat.id, success_text, parse_mode="Markdown", reply_markup=main_menu_keyboard())
-        except Exception as e:
-            bot.send_message(message.chat.id, f"❌ कटौती रिकॉर्ड दर्ज करने में एरर: {str(e)}")
+        new_balance = update_user_balance(user_id, -price)
+        success_text = (
+            "✅ *खरीदारी सफल रही!*\n\n"
+            f"📦 *उत्पाद:* {item_name} (Full Season)\n"
+            f"💸 *कटौती:* {price} RS\n"
+            f"💰 *नया बैलेंस:* {new_balance} RS\n\n"
+            f"{stock_data}"
+        )
+        bot.send_message(message.chat.id, success_text, parse_mode="Markdown", reply_markup=main_menu_keyboard())
     else:
         bot.send_message(message.chat.id, f"❌ *बैलेंस कम है!*\n\n• आवश्यक: {price} RS\n• आपका बैलेंस: {current_balance} RS\n\nकृपया FUND बढ़ाने के लिए ADD FUND बटन दबाएं।")
 
 # /start कमांड
 @bot.message_handler(commands=['start'])
 def start_command(message):
+    user_id = message.from_user.id
+    # नए यूजर का डिफॉल्ट एंट्री सेव करना
+    balances = read_all_balances()
+    if user_id not in balances:
+        balances[user_id] = 0
+        save_all_balances(balances)
     bot.send_message(message.chat.id, "👋 आपका स्वागत है SpeedFistt स्टोर बॉट में!\n\nनीचे दिए गए बटन्स का उपयोग करके शॉपिंग करें।", reply_markup=main_menu_keyboard())
 
 # इनपुट हैंडलर
@@ -151,8 +150,8 @@ def admin_add_balance(message):
         target_user = int(args[1])
         amount = int(args[2])
         
-        # फंड जोड़ने का रिकॉर्ड प्राइवेट चैनल में भेजना
-        bot.send_message(CHANNEL_ID, f"ADD:{target_user}:{amount}")
+        # फाइल डेटाबेस में बैलेंस जोड़ना
+        new_balance = update_user_balance(target_user, amount)
         
         bot.send_message(message.chat.id, f"✅ यूजर `{target_user}` के खाते में {amount} RS जोड़ दिए गए हैं।")
         bot.send_message(target_user, f"🎉 एडमिन @SpeedFistt ने आपके खाते में *{amount} RS* जोड़ दिए हैं! अपना BALANCE चेक करें।", parse_mode="Markdown")
